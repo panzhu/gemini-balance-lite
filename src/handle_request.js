@@ -32,6 +32,11 @@ export const handleRequest = withMetrics(async (request) => {
     return handleOpenAI(request);
   }
 
+  // 只有以/models开头的请求才转发给Gemini API
+  if (!pathname.startsWith('/models')) {
+    return new Response('Not Found', { status: 404 });
+  }
+
   const { targetUrl } = handleGemini(request, pathname, search);
 
   try {

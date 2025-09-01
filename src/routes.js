@@ -29,11 +29,7 @@ export async function handleOpenAI(request) {
 export function handleGemini(request, pathname, search) {
   // Construct the target URL for the Gemini API
   // Ensure pathname starts with '/' and avoid double slashes
-  console.log('Original pathname:', pathname);
-  console.log('Search params:', search);
   const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
-  console.log('Normalized path:', normalizedPath);
   const targetUrl = `${GEMINI_API_BASE_URL}/${GEMINI_API_VERSION}${normalizedPath}${search}`;
-  console.log('Target URL:', targetUrl);
   return { targetUrl };
 }
