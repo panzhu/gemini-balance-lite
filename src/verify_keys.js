@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from './fetch_utils.js';
+
 async function verifyKey(key, controller) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   const body = {
@@ -10,14 +12,17 @@ async function verifyKey(key, controller) {
   };
   let result;
   try {
-    const response = await fetch(url, {
+    // Get timeout from environment variable or use default of 30 seconds
+    const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 30000;
+    
+    const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-goog-api-key': key,
       },
       body: JSON.stringify(body),
-    });
+    }, FETCH_TIMEOUT);
     if (response.ok) {
       await response.text(); // Consume body to release connection
       result = { key: `${key.slice(0, 7)}......${key.slice(-7)}`, status: 'GOOD' };

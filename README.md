@@ -1,7 +1,7 @@
 # Gemini Balance Lite
 # Gemini API 代理和负载均衡无服务器轻量版（边缘函数）
 
-### 作者：技术爬爬虾
+### 原作者：技术爬爬虾 https://github.com/tech-shrimp/gemini-balance-lite
 [B站](https://space.bilibili.com/316183842)，[Youtube](https://www.youtube.com/@Tech_Shrimp)，抖音，公众号 全网同名。转载请注明作者。
 
 

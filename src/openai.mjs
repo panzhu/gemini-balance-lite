@@ -4,6 +4,10 @@
 
 
 import { Buffer } from "node:buffer";
+import { defaultCache } from './simple_cache.js';
+import { chatCompletionsSchema, embeddingsSchema, validateRequest } from './validation_schemas.js';
+import { logError, categorizeError } from './error_handler.js';
+import { fetchWithTimeout } from './fetch_utils.js';
 
 export default {
   async fetch (request) {
@@ -11,8 +15,39 @@ export default {
       return handleOPTIONS();
     }
     const errHandler = (err) => {
-      console.error(err);
-      return new Response(err.message, fixCors({ status: err.status ?? 500 }));
+      // Log detailed error information with context
+      logError(err, 'OpenAI handler', {
+        url: request?.url,
+        method: request?.method
+      });
+      
+      // Return appropriate error response
+      const category = categorizeError(err);
+      let status = err.status ?? 500;
+      let message = err.message;
+      
+      switch (category) {
+        case 'network_error':
+          message = 'Network Error: Unable to reach Gemini API';
+          break;
+        case 'authentication_error':
+          status = 401;
+          message = 'Authentication Error: Invalid API Key';
+          break;
+        case 'rate_limit_error':
+          status = 429;
+          message = 'Rate Limit Exceeded: Too many requests';
+          break;
+        case 'validation_error':
+          status = 400;
+          message = 'Bad Request: Invalid request parameters';
+          break;
+        case 'timeout_error':
+          message = 'Request Timeout: The request took too long';
+          break;
+      }
+      
+      return new Response(message, fixCors({ status }));
     };
     try {
       const auth = request.headers.get("Authorization");
@@ -74,8 +109,7 @@ const handleOPTIONS = async () => {
   });
 };
 
-const BASE_URL = "https://generativelanguage.googleapis.com";
-const API_VERSION = "v1beta";
+import { GEMINI_API_BASE_URL, GEMINI_API_VERSION, ENV_MODELS_CACHE_TTL, DEFAULT_MODELS_CACHE_TTL } from './constants.js';
 
 // https://github.com/google-gemini/generative-ai-js/blob/cf223ff4a1ee5a2d944c53cddb8976136382bee6/src/requests/request.ts#L71
 const API_CLIENT = "genai-js/0.21.0"; // npm view @google/generative-ai version
@@ -86,9 +120,21 @@ const makeHeaders = (apiKey, more) => ({
 });
 
 async function handleModels (apiKey) {
-  const response = await fetch(`${BASE_URL}/${API_VERSION}/models`, {
+  // Try to get cached response first
+  const cacheKey = `models_${apiKey}`;
+  const cachedResponse = defaultCache.get(cacheKey);
+  
+  if (cachedResponse) {
+    console.log('Returning cached models response');
+    return new Response(cachedResponse.body, cachedResponse.response);
+  }
+  
+  // Get timeout from environment variable or use default of 30 seconds
+  const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 30000;
+  
+  const response = await fetchWithTimeout(`${BASE_URL}/${API_VERSION}/models`, {
     headers: makeHeaders(apiKey),
-  });
+  }, FETCH_TIMEOUT);
   let { body } = response;
   if (response.ok) {
     const { models } = JSON.parse(await response.text());
@@ -102,11 +148,22 @@ async function handleModels (apiKey) {
       })),
     }, null, "  ");
   }
+  
+  // Cache the response for 1 hour (3600000 milliseconds)
+  const CACHE_TTL = parseInt(process.env[ENV_MODELS_CACHE_TTL]) || DEFAULT_MODELS_CACHE_TTL;
+  defaultCache.set(cacheKey, { body, response: fixCors(response) }, CACHE_TTL);
+  
   return new Response(body, fixCors(response));
 }
 
 const DEFAULT_EMBEDDINGS_MODEL = "text-embedding-004";
 async function handleEmbeddings (req, apiKey) {
+  // Validate request input
+  const validation = validateRequest(req, embeddingsSchema);
+  if (!validation.success) {
+    throw new HttpError(`Invalid request: ${JSON.stringify(validation.error)}`, 400);
+  }
+  
   if (typeof req.model !== "string") {
     throw new HttpError("model is not specified", 400);
   }
@@ -122,7 +179,10 @@ async function handleEmbeddings (req, apiKey) {
   if (!Array.isArray(req.input)) {
     req.input = [ req.input ];
   }
-  const response = await fetch(`${BASE_URL}/${API_VERSION}/${model}:batchEmbedContents`, {
+  // Get timeout from environment variable or use default of 30 seconds
+  const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 30000;
+  
+  const response = await fetchWithTimeout(`${BASE_URL}/${API_VERSION}/${model}:batchEmbedContents`, {
     method: "POST",
     headers: makeHeaders(apiKey, { "Content-Type": "application/json" }),
     body: JSON.stringify({
@@ -132,7 +192,7 @@ async function handleEmbeddings (req, apiKey) {
         outputDimensionality: req.dimensions,
       }))
     })
-  });
+  }, FETCH_TIMEOUT);
   let { body } = response;
   if (response.ok) {
     const { embeddings } = JSON.parse(await response.text());
@@ -151,6 +211,12 @@ async function handleEmbeddings (req, apiKey) {
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 async function handleCompletions (req, apiKey) {
+  // Validate request input
+  const validation = validateRequest(req, chatCompletionsSchema);
+  if (!validation.success) {
+    throw new HttpError(`Invalid request: ${JSON.stringify(validation.error)}`, 400);
+  }
+  
   let model = DEFAULT_MODEL;
   switch (true) {
     case typeof req.model !== "string":
@@ -189,11 +255,14 @@ async function handleCompletions (req, apiKey) {
   const TASK = req.stream ? "streamGenerateContent" : "generateContent";
   let url = `${BASE_URL}/${API_VERSION}/models/${model}:${TASK}`;
   if (req.stream) { url += "?alt=sse"; }
-  const response = await fetch(url, {
+  // Get timeout from environment variable or use default of 30 seconds
+  const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 30000;
+  
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: makeHeaders(apiKey, { "Content-Type": "application/json" }),
     body: JSON.stringify(body),
-  });
+  }, FETCH_TIMEOUT);
 
   body = response.body;
   if (response.ok) {

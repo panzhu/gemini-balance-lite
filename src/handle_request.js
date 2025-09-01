@@ -1,29 +1,39 @@
-import { handleVerification } from './verify_keys.js';
-import openai from './openai.mjs';
+import { defaultTokenBucket } from './token_bucket.js';
+import { logError, categorizeError } from './error_handler.js';
+import { fetchWithTimeout } from './fetch_utils.js';
+import { handleRoot, handleVerify, handleOpenAI, handleGemini, handleMetrics } from './routes.js';
 
-export async function handleRequest(request) {
+import { ROOT_PATHS, VERIFY_PATH, OPENAI_ENDPOINTS, GEMINI_API_BASE_URL } from './constants.js';
+
+import { withMetrics } from './metrics.js';
+
+export const handleRequest = withMetrics(async (request) => {
 
   const url = new URL(request.url);
   const pathname = url.pathname;
   const search = url.search;
 
-  if (pathname === '/' || pathname === '/index.html') {
-    return new Response('Proxy is Running!  More Details: https://github.com/tech-shrimp/gemini-balance-lite', {
-      status: 200,
-      headers: { 'Content-Type': 'text/html' }
-    });
+  if (pathname === '/metrics') {
+    return handleMetrics();
   }
 
-  if (pathname === '/verify' && request.method === 'POST') {
-    return handleVerification(request);
+  if (ROOT_PATHS.includes(pathname)) {
+    return handleRoot();
+  }
+
+  if (pathname === VERIFY_PATH && request.method === 'POST') {
+    return handleVerify(request);
   }
 
   // 处理OpenAI格式请求
-  if (url.pathname.endsWith("/chat/completions") || url.pathname.endsWith("/completions") || url.pathname.endsWith("/embeddings") || url.pathname.endsWith("/models")) {
-    return openai.fetch(request);
+  const isOpenAIEndpoint = OPENAI_ENDPOINTS.some(endpoint => 
+    url.pathname.endsWith(endpoint)
+  );
+  if (isOpenAIEndpoint) {
+    return handleOpenAI(request);
   }
 
-  const targetUrl = `https://generativelanguage.googleapis.com${pathname}${search}`;
+  const { targetUrl } = handleGemini(request, pathname, search);
 
   try {
     const headers = new Headers();
@@ -47,14 +57,19 @@ export async function handleRequest(request) {
     console.log('targetUrl:'+targetUrl)
     console.log(headers)
 
-    // 添加请求频率控制 - 最小间隔 100ms
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 使用令牌桶算法进行速率限制
+    await defaultTokenBucket.waitForTokens(1);
 
-    const response = await fetch(targetUrl, {
+import { ENV_FETCH_TIMEOUT, DEFAULT_FETCH_TIMEOUT } from './constants.js';
+
+    // Get timeout from environment variable or use default
+    const FETCH_TIMEOUT = parseInt(process.env[ENV_FETCH_TIMEOUT]) || DEFAULT_FETCH_TIMEOUT;
+    
+    const response = await fetchWithTimeout(targetUrl, {
       method: request.method,
       headers: headers,
       body: request.body
-    });
+    }, FETCH_TIMEOUT);
 
     console.log("Call Gemini Success")
 
@@ -75,9 +90,41 @@ export async function handleRequest(request) {
     });
 
   } catch (error) {
-   console.error('Failed to fetch:', error);
-   return new Response('Internal Server Error\n' + error?.stack, {
-    status: 500,
+   // Log detailed error information with context
+   logError(error, 'handleRequest', {
+     targetUrl,
+     requestMethod: request.method,
+     requestHeaders: Object.fromEntries(request.headers.entries())
+   });
+   
+   // Return appropriate error response
+   const category = categorizeError(error);
+   let status = 500;
+   let message = 'Internal Server Error';
+   
+   switch (category) {
+     case 'network_error':
+       message = 'Network Error: Unable to reach Gemini API';
+       break;
+     case 'authentication_error':
+       status = 401;
+       message = 'Authentication Error: Invalid API Key';
+       break;
+     case 'rate_limit_error':
+       status = 429;
+       message = 'Rate Limit Exceeded: Too many requests';
+       break;
+     case 'validation_error':
+       status = 400;
+       message = 'Bad Request: Invalid request parameters';
+       break;
+     case 'timeout_error':
+       message = 'Request Timeout: The request took too long';
+       break;
+   }
+   
+   return new Response(message, {
+    status,
     headers: { 'Content-Type': 'text/plain' }
    });
 }
