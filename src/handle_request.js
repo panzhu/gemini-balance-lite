@@ -2,10 +2,9 @@ import { defaultTokenBucket } from './token_bucket.js';
 import { logError, categorizeError } from './error_handler.js';
 import { fetchWithTimeout } from './fetch_utils.js';
 import { handleRoot, handleVerify, handleOpenAI, handleGemini, handleMetrics } from './routes.js';
-
-import { ROOT_PATHS, VERIFY_PATH, OPENAI_ENDPOINTS, GEMINI_API_BASE_URL } from './constants.js';
-
+import { ROOT_PATHS, VERIFY_PATH, OPENAI_ENDPOINTS } from './constants.js';
 import { withMetrics } from './metrics.js';
+import { ENV_FETCH_TIMEOUT, DEFAULT_FETCH_TIMEOUT } from './constants.js';
 
 export const handleRequest = withMetrics(async (request) => {
 
@@ -26,7 +25,7 @@ export const handleRequest = withMetrics(async (request) => {
   }
 
   // 处理OpenAI格式请求
-  const isOpenAIEndpoint = OPENAI_ENDPOINTS.some(endpoint => 
+  const isOpenAIEndpoint = OPENAI_ENDPOINTS.some(endpoint =>
     url.pathname.endsWith(endpoint)
   );
   if (isOpenAIEndpoint) {
@@ -46,25 +45,22 @@ export const handleRequest = withMetrics(async (request) => {
           headers.set('x-goog-api-key', selectedKey);
         }
       } else {
-        if (key.trim().toLowerCase()==='content-type')
-        {
-           headers.set(key, value);
+        if (key.trim().toLowerCase() === 'content-type') {
+          headers.set(key, value);
         }
       }
     }
 
     console.log('Request Sending to Gemini')
-    console.log('targetUrl:'+targetUrl)
+    console.log('targetUrl:' + targetUrl)
     console.log(headers)
 
     // 使用令牌桶算法进行速率限制
     await defaultTokenBucket.waitForTokens(1);
 
-import { ENV_FETCH_TIMEOUT, DEFAULT_FETCH_TIMEOUT } from './constants.js';
-
     // Get timeout from environment variable or use default
     const FETCH_TIMEOUT = parseInt(process.env[ENV_FETCH_TIMEOUT]) || DEFAULT_FETCH_TIMEOUT;
-    
+
     const response = await fetchWithTimeout(targetUrl, {
       method: request.method,
       headers: headers,
@@ -90,42 +86,42 @@ import { ENV_FETCH_TIMEOUT, DEFAULT_FETCH_TIMEOUT } from './constants.js';
     });
 
   } catch (error) {
-   // Log detailed error information with context
-   logError(error, 'handleRequest', {
-     targetUrl,
-     requestMethod: request.method,
-     requestHeaders: Object.fromEntries(request.headers.entries())
-   });
-   
-   // Return appropriate error response
-   const category = categorizeError(error);
-   let status = 500;
-   let message = 'Internal Server Error';
-   
-   switch (category) {
-     case 'network_error':
-       message = 'Network Error: Unable to reach Gemini API';
-       break;
-     case 'authentication_error':
-       status = 401;
-       message = 'Authentication Error: Invalid API Key';
-       break;
-     case 'rate_limit_error':
-       status = 429;
-       message = 'Rate Limit Exceeded: Too many requests';
-       break;
-     case 'validation_error':
-       status = 400;
-       message = 'Bad Request: Invalid request parameters';
-       break;
-     case 'timeout_error':
-       message = 'Request Timeout: The request took too long';
-       break;
-   }
-   
-   return new Response(message, {
-    status,
-    headers: { 'Content-Type': 'text/plain' }
-   });
-}
-};
+    // Log detailed error information with context
+    logError(error, 'handleRequest', {
+      targetUrl,
+      requestMethod: request.method,
+      requestHeaders: Object.fromEntries(request.headers.entries())
+    });
+
+    // Return appropriate error response
+    const category = categorizeError(error);
+    let status = 500;
+    let message = 'Internal Server Error';
+
+    switch (category) {
+      case 'network_error':
+        message = 'Network Error: Unable to reach Gemini API';
+        break;
+      case 'authentication_error':
+        status = 401;
+        message = 'Authentication Error: Invalid API Key';
+        break;
+      case 'rate_limit_error':
+        status = 429;
+        message = 'Rate Limit Exceeded: Too many requests';
+        break;
+      case 'validation_error':
+        status = 400;
+        message = 'Bad Request: Invalid request parameters';
+        break;
+      case 'timeout_error':
+        message = 'Request Timeout: The request took too long';
+        break;
+    }
+
+    return new Response(message, {
+      status,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+});
