@@ -28,6 +28,28 @@ Gemini API 代理, 使用边缘函数把Gemini API免费中转到国内。还可
     ![image](/docs/images/2.png)
     </details>
 
+## 更新已部署的Vercel项目
+
+如果你已经部署了项目并需要更新到最新版本：
+
+### 方法一：通过Git连接自动更新
+1. 在Vercel控制台确保项目已连接到GitHub仓库
+2. 每次向GitHub仓库推送更新时，Vercel会自动重新部署
+
+### 方法二：手动重新部署
+1. 登录 [Vercel控制台](https://vercel.com)
+2. 选择你的Gemini Balance Lite项目
+3. 点击 "Deployments" 标签页
+4. 找到最新的部署记录，点击 "Redeploy" 按钮
+5. 或者点击顶部的 "Deploy" 按钮选择 "Redeploy"
+
+### 方法三：通过Vercel CLI
+1. 安装Vercel CLI: `npm install -g vercel`
+2. 在项目目录运行: `vercel --prod`
+3. 按照提示登录并选择要更新的项目
+
+更新后，所有更改将立即生效，无需重新配置域名或API Key。
+
 
 
 

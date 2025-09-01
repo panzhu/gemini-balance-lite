@@ -47,6 +47,9 @@ export async function handleRequest(request) {
     console.log('targetUrl:'+targetUrl)
     console.log(headers)
 
+    // 添加请求频率控制 - 最小间隔 100ms
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     const response = await fetch(targetUrl, {
       method: request.method,
       headers: headers,
