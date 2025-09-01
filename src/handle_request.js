@@ -32,8 +32,11 @@ export const handleRequest = withMetrics(async (request) => {
     return handleOpenAI(request);
   }
 
-  // 只有以/models开头的请求才转发给Gemini API
-  if (!pathname.startsWith('/models')) {
+  // 允许常见的Gemini API端点
+  const allowedGeminiEndpoints = ['/models', '/operations', '/tunedModels'];
+  const isAllowedEndpoint = allowedGeminiEndpoints.some(endpoint => pathname.startsWith(endpoint));
+  
+  if (!isAllowedEndpoint) {
     return new Response('Not Found', { status: 404 });
   }
 
