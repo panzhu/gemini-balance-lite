@@ -22,7 +22,7 @@ export const OPENAI_ENDPOINTS = [
 ];
 
 // Response Messages
-export const ROOT_RESPONSE_MESSAGE = 'Proxy is Running! More Details: https://github.com/tech-shrimp/gemini-balance-lite';
+export const ROOT_RESPONSE_MESSAGE = 'Proxy is Running! More Details: https://github.com/panzhu/gemini-balance-lite';
 export const NETWORK_ERROR_MESSAGE = 'Network Error: Unable to reach Gemini API';
 export const AUTH_ERROR_MESSAGE = 'Authentication Error: Invalid API Key';
 export const RATE_LIMIT_ERROR_MESSAGE = 'Rate Limit Exceeded: Too many requests';
@@ -38,3 +38,4 @@ export const ENV_REQUEST_LOGGING = 'REQUEST_LOGGING';
 
 // Cache and other defaults
 export const DEFAULT_MODELS_CACHE_TTL = 3600000; // 1 hour
+
