@@ -1,5 +1,7 @@
 import { getMetricsSummary } from './metrics.js';
-import { GEMINI_API_BASE_URL, GEMINI_API_VERSION } from './constants.js';
+import { GEMINI_API_BASE_URL, GEMINI_API_VERSION, ROOT_RESPONSE_MESSAGE } from './constants.js';
+import { handleVerification } from './verify_keys.js';
+import openaiHandler from './openai.mjs';
 
 export function handleMetrics() {
   const metrics = getMetricsSummary();
@@ -7,6 +9,21 @@ export function handleMetrics() {
     status: 200,
     headers: { 'Content-Type': 'application/json' }
   });
+}
+
+export function handleRoot() {
+  return new Response(ROOT_RESPONSE_MESSAGE, {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain' }
+  });
+}
+
+export function handleVerify(request) {
+  return handleVerification(request);
+}
+
+export async function handleOpenAI(request) {
+  return openaiHandler.fetch(request);
 }
 
 export function handleGemini(request, pathname, search) {
