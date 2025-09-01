@@ -33,7 +33,14 @@ export const handleRequest = withMetrics(async (request) => {
   }
 
   // 允许常见的Gemini API端点
-  const allowedGeminiEndpoints = ['/models', '/operations', '/tunedModels'];
+  const allowedGeminiEndpoints = [
+    '/models', 
+    '/operations', 
+    '/tunedModels',
+    '/generateContent',
+    '/embeddings',
+    '/batchEmbedContents'
+  ];
   const isAllowedEndpoint = allowedGeminiEndpoints.some(endpoint => pathname.startsWith(endpoint));
   
   if (!isAllowedEndpoint) {

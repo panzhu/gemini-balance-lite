@@ -111,6 +111,9 @@ const handleOPTIONS = async () => {
 
 import { GEMINI_API_BASE_URL, GEMINI_API_VERSION, ENV_MODELS_CACHE_TTL, DEFAULT_MODELS_CACHE_TTL } from './constants.js';
 
+const BASE_URL = GEMINI_API_BASE_URL;
+const API_VERSION = GEMINI_API_VERSION;
+
 // https://github.com/google-gemini/generative-ai-js/blob/cf223ff4a1ee5a2d944c53cddb8976136382bee6/src/requests/request.ts#L71
 const API_CLIENT = "genai-js/0.21.0"; // npm view @google/generative-ai version
 const makeHeaders = (apiKey, more) => ({
